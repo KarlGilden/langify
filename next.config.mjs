@@ -13,6 +13,11 @@ const config = {
         hostname: 'scontent.ftir6-1.fna.fbcdn.net',
         port: '',
       },
+      {
+        protocol: 'https',
+        hostname: "scontent.fmaa10-1.fna.fbcdn.net",
+        port: ''
+      }
     ],
   },
   reactStrictMode: false,
