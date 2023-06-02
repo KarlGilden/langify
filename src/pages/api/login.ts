@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 export default function login(req:NextApiRequest, res:NextApiResponse) {
     var state = generateRandomString(16);
     console.log("hello")
-    var scope = 'user-read-private user-read-email';
+    var scope = 'user-read-private user-read-email streaming';
     const args = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.CLIENT_ID ? process.env.CLIENT_ID : "",

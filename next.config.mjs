@@ -14,9 +14,8 @@ const config = {
         port: '',
       },
       {
-        protocol: 'https',
-        hostname: "scontent.fmaa10-1.fna.fbcdn.net",
-        port: ''
+        protocol: "https",
+        hostname: "**"
       }
     ],
   },
