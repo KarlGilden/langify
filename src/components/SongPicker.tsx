@@ -11,10 +11,10 @@ interface IProps{
 
     setDisplay: Dispatch<SetStateAction<boolean>>;
     setTrack: Dispatch<SetStateAction<any>>;
-    getTrack: (id:string)=>Promise<void>;
+    handleClickTrack: (id:string)=>void;
 }
 
-const SongPicker = ({loading, loadingTrack, playlist, title, display, setDisplay, getTrack}:IProps) => {
+const SongPicker = ({loading, loadingTrack, playlist, title, display, setDisplay, handleClickTrack}:IProps) => {
 
   return (
     <div className={`${!display ? "hidden" : ""} fixed flex justify-center items-center top-0 left-0 bottom-0 w-full h-screen bg-blur`}>
@@ -29,7 +29,7 @@ const SongPicker = ({loading, loadingTrack, playlist, title, display, setDisplay
             {!loading && !loadingTrack ? 
                 <div className='overflow-y-scroll h-full' >
                     {playlist?.items?.map((value:any,index:number)=>{
-                        return <div onClick={()=>{getTrack(value.track.id)}} key={index} className='text-white flex items-end text-sm px-3 py-2 border-b-[1px] border-spotify-lightgray hover:bg-spotify-gray cursor-pointer'>
+                        return <div onClick={()=>{handleClickTrack(value.track.id)}} key={index} className='text-white flex items-end text-sm px-3 py-2 border-b-[1px] border-spotify-lightgray hover:bg-spotify-gray cursor-pointer'>
                                     <p className='leading-none'>{value.track.name}</p>
                                     <div className='p-1'></div>
                                     <ArtistsContainer artists={value.track.artists}/>

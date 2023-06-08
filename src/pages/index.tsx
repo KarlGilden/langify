@@ -3,12 +3,11 @@ import Head from "next/head";
 import { useState, useEffect } from "react";
 import SpotifyPlayer from 'react-spotify-web-playback';
 import SongPicker from "~/components/SongPicker";
-import ArtistsContainer from "~/components/ArtistsContainer";
 import Profile from "~/components/Profile";
 const Home: NextPage = () => {
 
   // state token
-  const [token, setToken] = useState<string>("");
+  const [token, setToken] = useState<any>(null);
 
   // state
   const [user, setUser] = useState<any>({images: [{url:""}]});
@@ -17,8 +16,8 @@ const Home: NextPage = () => {
   const [currentPlaylist, setCurrentPlaylist] = useState<any>("");
   const [currentPlaylistName, setCurrentPlaylistName] = useState<string>("");
   const [currentTrack, setCurrentTrack] = useState<any>();
-  const [currentLyrics, setCurrentLyrics] = useState<string>("");
-  const [currentTranslation, setCurrentTranslation] = useState<string>("");
+  const [currentLyrics, setCurrentLyrics] = useState<string[]>([""]);
+  const [currentTranslation, setCurrentTranslation] = useState<string[]>([""]);
   const [player, setPlayer] = useState<Spotify.Player>();
 
   // loading states
@@ -31,13 +30,20 @@ const Home: NextPage = () => {
   useEffect(()=>{
     const t = localStorage.getItem("access_token")
     if(t){
-      setToken(t || "")
-      getProfile()
-      getUserPlaylists()
-      setPlayer(player)
+      setToken(t);
+      loadInitData();
     }
     else if(window.location.search.split("?").length > 1){
       getToken()
+      .then((data:any)=>{
+
+        localStorage.setItem("access_token", JSON.stringify(data))
+        setToken(data);
+
+        loadInitData();
+
+        window.location.search = "";
+      })
     }
   }, []);
 
@@ -46,7 +52,7 @@ const Home: NextPage = () => {
   async function getProfile() {
     setLoadingUser(true)
 
-    let accessToken = localStorage.getItem('access_token');
+    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
 
     await fetch('/api/user', {
       method: 'POST',
@@ -62,10 +68,13 @@ const Home: NextPage = () => {
       setUser(data)
       setLoadingUser(false)
     })
+    .catch((e)=>{
+      setToken(null)
+    })
   };
 
   async function getUserPlaylists() {
-    let accessToken = localStorage.getItem('access_token');
+    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
     const response = await fetch('https://api.spotify.com/v1/me/playlists', {
       headers: {
         Authorization: 'Bearer ' + accessToken
@@ -80,7 +89,7 @@ const Home: NextPage = () => {
 
   async function getPlaylistTracks(playlistid:string){
     setLoadingPlaylist(true)
-    let accessToken = localStorage.getItem('access_token');
+    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
     const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistid}/tracks`, {
       headers: {
         Authorization: 'Bearer ' + accessToken
@@ -95,71 +104,27 @@ const Home: NextPage = () => {
   };
 
   async function getTrack(id:string){
-
     setLoadingTrack(true)
-    let accessToken = localStorage.getItem('access_token');
 
-    const response = await fetch(`https://api.spotify.com/v1/tracks/${id}`, {
-      headers: {
-        Authorization: 'Bearer ' + accessToken
-      }
-    })
-    .then(res => res.json())
-    .then(data => {
+    return new Promise((resolve, reject)=>{
 
-      // get lyrics
-      getLyricsByTrackId(data.external_ids.isrc)
+      let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
 
-      // update global state 
-      setCurrentTrack(data)
-
-      // set UI state
-      setShowSongPicker(false)
-      setLoadingTrack(false)
-
-    });
-  };
-
-  async function getLyricsByTrackId(isrc:string){
-
-    const response = await fetch('/api/getLyricsByTrackId',{
+      fetch('/api/track', {
         method: 'POST',
-        body: JSON.stringify({isrc}),
         headers: {
-            "Content-Type": "application/json"
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
-
-        const lyrics = data.lyrics.lyrics_body;
-
-        // update global state
-        setCurrentLyrics(lyrics);
-
-        // get translation
-        getLyricsTranslation(lyrics);
-
-    });
-  };
-
-  async function getLyricsTranslation(text:string){
-    await fetch('/api/translate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({text})
-    })
-    .then(res=>res.json())
-    .then(data=>{
-      console.log(data)
-      setCurrentTranslation(data.data.translations[0].translatedText)
-    })
-    .catch(error=> {
-      setCurrentTranslation(error);
-    })
-
+          'Content-Type': "application/json"
+        },
+        body: JSON.stringify({
+          id: id,
+          accessToken: accessToken
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        resolve(data)
+      })    
+      })
   };
 
   // click handlers
@@ -171,29 +136,44 @@ const Home: NextPage = () => {
     getPlaylistTracks(id)
   };
 
+  const handleClickTrack = (id:string) => {
+    
+    // set UI state
+    setLoadingTrack(false)
+    setLoadingTranslation(true)
+    setShowSongPicker(false)
+
+    getTrack(id).then((data:any)=>{
+      setCurrentTranslation(data)
+      setLoadingTranslation(false);
+    })
+  };
+
+  const loadInitData = () => {
+    getProfile()
+    getUserPlaylists()
+    setPlayer(player)
+  };
+
   // auth functions
 
   const getToken = async () => {
-    const params = new URLSearchParams(window.location.search);
-    console.log("code: " + params.get("code"))
-    console.log("state: " + params.get("state"))
-    await fetch("/api/callback", {
-      method: 'POST',
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        code: params.get("code"),
-        state: params.get("state")
+    return new Promise((resolve, reject)=>{
+      const params = new URLSearchParams(window.location.search);
+      fetch("/api/callback", {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code: params.get("code"),
+          state: params.get("state")
+        })
       })
-    })
-    .then(res => res.json())
-    .then(data => {
-      localStorage.setItem("access_token", data.access_token)
-      setToken(data.access_token)
-      window.location.search = ""
-      getProfile()
-      getUserPlaylists()
+      .then(res => res.json())
+      .then(data => {
+        resolve(data);
+      })
     })
   };
 
@@ -224,7 +204,7 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <SongPicker display={showSongPicker} setDisplay={setShowSongPicker} loading={loadingPlaylist} loadingTrack={loadingTrack} playlist={currentPlaylist} title={currentPlaylistName} setTrack={setCurrentTrack} getTrack={getTrack}/>
+      <SongPicker display={showSongPicker} setDisplay={setShowSongPicker} loading={loadingPlaylist} loadingTrack={loadingTrack} playlist={currentPlaylist} title={currentPlaylistName} setTrack={setCurrentTrack} handleClickTrack={handleClickTrack}/>
       
       <main className="bg-spotify-black min-h-screen px-16 lg:px-48 py-5">
         <div className="p-10 flex justify-center w-full">
@@ -248,15 +228,26 @@ const Home: NextPage = () => {
         }} 
          /> */}
 
-        <div className="flex">
+        <div className="grid grid-cols-2 gap-5">
           <div className="w-[100%] p-5 bg-spotify-green rounded-2xl font-extrabold">
-            {currentLyrics.split(`\n`).map((value:string, index:number)=>{
-              return <p key={index}>{value}</p>
-            })}
+          {loadingTranslation ? 
+            <p>Loading...</p>
+            :
+              <>{currentLyrics?.map((value:string, index:number)=>{
+                return <p className="pb-1 text-lg" key={index}>{value}</p>
+              })}
+              </>
+            }
           </div>
-          <div className="p-2"></div>
-          <div className="w-[100%] p-5 bg-gray-200 rounded-2xl">
-            {currentTranslation}
+          <div className="w-[100%] p-5 bg-gray-200 rounded-2xl font-extrabold">
+          {loadingTranslation ? 
+            <p>Loading...</p>
+            :
+              <>{currentTranslation?.map((value:string, index:number)=>{
+                return <p className="pb-1 text-lg" key={index}>{value}</p>
+              })}
+              </>
+            }
           </div>
         </div>
       </main>
