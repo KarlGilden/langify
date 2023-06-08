@@ -1,6 +1,7 @@
 import React, { Dispatch, SetStateAction, useState } from 'react'
 import {BiArrowBack} from 'react-icons/bi'
 import ArtistsContainer from './ArtistsContainer'
+import TrackListItem from './TrackListItem';
 interface IProps{
     loading: boolean;
     loadingTrack: boolean;
@@ -10,7 +11,6 @@ interface IProps{
     title:string;
 
     setDisplay: Dispatch<SetStateAction<boolean>>;
-    setTrack: Dispatch<SetStateAction<any>>;
     handleClickTrack: (id:string)=>void;
 }
 
@@ -26,23 +26,17 @@ const SongPicker = ({loading, loadingTrack, playlist, title, display, setDisplay
                 <h1>{title}</h1>
             </div>
 
-            {!loading && !loadingTrack ? 
-                <div className='overflow-y-scroll h-full' >
-                    {playlist?.items?.map((value:any,index:number)=>{
-                        return <div onClick={()=>{handleClickTrack(value.track.id)}} key={index} className='text-white flex items-end text-sm px-3 py-2 border-b-[1px] border-spotify-lightgray hover:bg-spotify-gray cursor-pointer'>
-                                    <p className='leading-none'>{value.track.name}</p>
-                                    <div className='p-1'></div>
-                                    <ArtistsContainer artists={value.track.artists}/>
-                                </div>
-                    })}
+                <div className={`overflow-y-scroll w-full h-full ${loading && ' flex justify-center items-center'}`}>
+                    {!loading ? 
+                        <>
+                        {playlist?.items?.map((value:any,index:number)=>{
+                            return <TrackListItem track={value} handleClickTrack={handleClickTrack} key={index}/>
+                        })}
+                        </>
+                        :
+                        <p className='text-white'>Loading...</p>
+                        }
                 </div>
-                :
-                <div className='w-full h-full flex justify-center items-center'>
-                    <p className='text-white'>
-                        Loading...
-                    </p>
-                </div>
-            }
         </div>
     </div>
   )

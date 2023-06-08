@@ -4,6 +4,21 @@ import { useState, useEffect } from "react";
 import SpotifyPlayer from 'react-spotify-web-playback';
 import SongPicker from "~/components/SongPicker";
 import Profile from "~/components/Profile";
+
+interface ILyrics {
+  original:string;
+  translation:string;
+}
+
+interface IToken {
+  access_token: string;
+  token_type: string;
+  scope: string;
+  created?: number;
+  expires_in: number;
+}
+
+
 const Home: NextPage = () => {
 
   // state token
@@ -15,9 +30,7 @@ const Home: NextPage = () => {
   const [showSongPicker, setShowSongPicker] = useState<boolean>(false);
   const [currentPlaylist, setCurrentPlaylist] = useState<any>("");
   const [currentPlaylistName, setCurrentPlaylistName] = useState<string>("");
-  const [currentTrack, setCurrentTrack] = useState<any>();
-  const [currentLyrics, setCurrentLyrics] = useState<string[]>([""]);
-  const [currentTranslation, setCurrentTranslation] = useState<string[]>([""]);
+  const [currentTrack, setCurrentTrack] = useState<ILyrics | null>({original:"",translation:""});
   const [player, setPlayer] = useState<Spotify.Player>();
 
   // loading states
@@ -28,18 +41,24 @@ const Home: NextPage = () => {
   const [loadingTranslation, setLoadingTranslation] = useState<boolean>(false);
 
   useEffect(()=>{
-    const t = localStorage.getItem("access_token")
-    if(t){
-      setToken(t);
+
+    const token = sessionStorage.getItem("access_token")
+    
+    if(token){
+      if(tokenExpired(JSON.parse(token))){
+        logout();
+        return
+      }
+      setToken(token);
       loadInitData();
+      
     }
     else if(window.location.search.split("?").length > 1){
       getToken()
       .then((data:any)=>{
+        persistToken(data);
 
-        localStorage.setItem("access_token", JSON.stringify(data))
         setToken(data);
-
         loadInitData();
 
         window.location.search = "";
@@ -52,7 +71,7 @@ const Home: NextPage = () => {
   async function getProfile() {
     setLoadingUser(true)
 
-    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
+    let accessToken = JSON.parse(sessionStorage.getItem('access_token') || "").access_token;
 
     await fetch('/api/user', {
       method: 'POST',
@@ -68,13 +87,10 @@ const Home: NextPage = () => {
       setUser(data)
       setLoadingUser(false)
     })
-    .catch((e)=>{
-      setToken(null)
-    })
   };
 
   async function getUserPlaylists() {
-    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
+    let accessToken = JSON.parse(sessionStorage.getItem('access_token') || "").access_token;
     const response = await fetch('https://api.spotify.com/v1/me/playlists', {
       headers: {
         Authorization: 'Bearer ' + accessToken
@@ -89,7 +105,7 @@ const Home: NextPage = () => {
 
   async function getPlaylistTracks(playlistid:string){
     setLoadingPlaylist(true)
-    let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
+    let accessToken = JSON.parse(sessionStorage.getItem('access_token') || "").access_token;
     const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistid}/tracks`, {
       headers: {
         Authorization: 'Bearer ' + accessToken
@@ -104,11 +120,9 @@ const Home: NextPage = () => {
   };
 
   async function getTrack(id:string){
-    setLoadingTrack(true)
-
     return new Promise((resolve, reject)=>{
 
-      let accessToken = JSON.parse(localStorage.getItem('access_token') || "").access_token;
+      let accessToken = JSON.parse(sessionStorage.getItem('access_token') || "").access_token;
 
       fetch('/api/track', {
         method: 'POST',
@@ -144,7 +158,7 @@ const Home: NextPage = () => {
     setShowSongPicker(false)
 
     getTrack(id).then((data:any)=>{
-      setCurrentTranslation(data)
+      setCurrentTrack(data)
       setLoadingTranslation(false);
     })
   };
@@ -171,10 +185,26 @@ const Home: NextPage = () => {
         })
       })
       .then(res => res.json())
-      .then(data => {
+      .then((data) => {
         resolve(data);
       })
     })
+  };
+
+  const persistToken = (data:any) => {
+    let token:IToken = data;
+    data.created = new Date();
+    sessionStorage.setItem("access_token", JSON.stringify(token))
+  };
+
+  const tokenExpired = (token:IToken):boolean => {
+    if(!token.created) return true;
+
+    const remainder = Date.now() - token.created;
+
+    if(remainder >= token.expires_in) return true
+
+    return false;
   };
 
   const login = () => {
@@ -192,8 +222,9 @@ const Home: NextPage = () => {
   };
 
   const logout = () => {
-    setToken("");
-    localStorage.removeItem("access_token")
+    setCurrentTrack(null)
+    setToken(null);
+    sessionStorage.removeItem("access_token");
   };
 
   return (
@@ -204,10 +235,10 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <SongPicker display={showSongPicker} setDisplay={setShowSongPicker} loading={loadingPlaylist} loadingTrack={loadingTrack} playlist={currentPlaylist} title={currentPlaylistName} setTrack={setCurrentTrack} handleClickTrack={handleClickTrack}/>
+      <SongPicker display={showSongPicker} setDisplay={setShowSongPicker} loading={loadingPlaylist} loadingTrack={loadingTrack} playlist={currentPlaylist} title={currentPlaylistName} handleClickTrack={handleClickTrack}/>
       
       <main className="bg-spotify-black min-h-screen px-16 lg:px-48 py-5">
-        <div className="p-10 flex justify-center w-full">
+        <div className="my-10 h-[150px] flex justify-center items-center w-full">
           {token ? 
             <Profile loadingUser={loadingUser} loadingPlaylist={loadingPlaylists} user={user} userPlaylists={userPlaylists} logout={logout} handleClickPlaylist={handleClickPlaylist}/>
             :
@@ -228,23 +259,17 @@ const Home: NextPage = () => {
         }} 
          /> */}
 
-        <div className="grid grid-cols-2 gap-5">
-          <div className="w-[100%] p-5 bg-spotify-green rounded-2xl font-extrabold">
+        <div className="">
+          <div className="p-10 bg-spotify-green rounded-2xl font-extrabold">
           {loadingTranslation ? 
             <p>Loading...</p>
             :
-              <>{currentLyrics?.map((value:string, index:number)=>{
-                return <p className="pb-1 text-lg" key={index}>{value}</p>
-              })}
-              </>
-            }
-          </div>
-          <div className="w-[100%] p-5 bg-gray-200 rounded-2xl font-extrabold">
-          {loadingTranslation ? 
-            <p>Loading...</p>
-            :
-              <>{currentTranslation?.map((value:string, index:number)=>{
-                return <p className="pb-1 text-lg" key={index}>{value}</p>
+              <>{currentTrack?.original.split("\n")?.map((value:string, index:number)=>{
+                return <div className="pb-1 flex text-lg" key={index}>
+                          <p className="w-[50%] py-2 text-[#222]">{value}</p>
+                          <div className="p-5"></div>
+                          <p className="w-[50%] py-2">{currentTrack?.translation.split("\n")[index]}</p>
+                        </div>
               })}
               </>
             }
