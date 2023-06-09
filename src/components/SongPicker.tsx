@@ -30,7 +30,7 @@ const SongPicker = ({loading, loadingTrack, playlist, title, display, setDisplay
                     {!loading ? 
                         <>
                         {playlist?.items?.map((value:any,index:number)=>{
-                            return <TrackListItem track={value} handleClickTrack={handleClickTrack} key={index}/>
+                            return <TrackListItem key={index} track={value} handleClickTrack={handleClickTrack}/>
                         })}
                         </>
                         :

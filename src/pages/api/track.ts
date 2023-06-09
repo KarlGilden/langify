@@ -1,5 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 
+interface ITrack{
+  track_id: string;
+  has_lyrics: string;
+  has_richsync: string;
+  has_translation: string;
+}
+
 export default async function trackHandler(req:NextApiRequest, res:NextApiResponse) {
     const accessToken = req.body.accessToken;
     const trackId = req.body.id;
@@ -38,24 +45,50 @@ const getTrackId = (isrc:string) => {
         fetch(`http://api.musixmatch.com/ws/1.1/track.get?track_isrc=${isrc}&apikey=${process.env.MUSIXMATCH_API_KEY}`)
         .then(res => res.json())
         .then(data => {
-            resolve(data.message.body.track.track_id)
+            const track = {
+              track_id: data.message.body.track.track_id,
+              has_lyrics: data.message.body.track.has_lyrics,
+              has_richsync: data.message.body.track.has_richsync
+            }
+            resolve(track)
         });
     })
 }
 
-async function getStandardLyrics(id:number) {
+async function getStandardLyrics(track:any) {
+  console.log(track)
     return new Promise((resolve, reject)=>{
-      fetch(`http://api.musixmatch.com/ws/1.1/track.lyrics.get?track_id=${id}&apikey=${process.env.MUSIXMATCH_API_KEY}`)
+      fetch(`http://api.musixmatch.com/ws/1.1/track.lyrics.get?track_id=${track.track_id}&apikey=${process.env.MUSIXMATCH_API_KEY}`)
       .then(res => res.json())
       .then(data => {
-        const lyrics = data.message.body.lyrics.lyrics_body
-        resolve(lyrics)
+        console.log(data)
+        if(track.has_richsync){
+          const lyrics = data.message.body.lyrics.lyrics_body
+          resolve(lyrics)
+          return;
+        } 
+        if(track.has_lyrics){
+          const lyrics = data.message.body.lyrics.lyrics_body
+          resolve(lyrics)
+          return;
+        }
+        if(!track.has_lyrics){
+          const lyrics = "No lyrics yet..."
+          resolve(lyrics);
+          return;
+        }
       });
     })
 }
 
 async function getTranslation(text:string){
     return new Promise((resolve, reject)=>{
+
+      if(text == "No lyrics yet...") {
+        resolve("");
+        return;
+      }
+
       fetch(`${process.env.URL}/api/translate`, {
         method: 'POST',
         headers: {

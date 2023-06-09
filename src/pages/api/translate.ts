@@ -6,7 +6,11 @@ export default async function translateHandler(req:NextApiRequest, res:NextApiRe
     if(typeof text !== "string") return 
  
     detect(text).then((data:any)=>{
-        translate(data, text, res);
+        if(data == "en") {
+            res.status(200).json(text)
+        }else{
+            translate(data, text, res);
+        }
     })
     
 }
